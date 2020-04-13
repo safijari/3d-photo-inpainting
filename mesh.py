@@ -1845,11 +1845,17 @@ def write_ply(image,
               depth_edge_model_init,
               depth_feat_model):
     depth = depth.astype(np.float64)
+
+    print("meshing")
     input_mesh, xy2depth, image, depth = create_mesh(depth, image, int_mtx, config)
 
     H, W = input_mesh.graph['H'], input_mesh.graph['W']
+
+    print("tearing")
     input_mesh = tear_edges(input_mesh, config['depth_threshold'], xy2depth)
+    print("initing")
     input_mesh, info_on_pix = generate_init_node(input_mesh, config, min_node_in_cc=200)
+    print("grouping")
     edge_ccs, input_mesh, edge_mesh = group_edges(input_mesh, config, image, remove_conflict_ordinal=False)
     edge_canvas = np.zeros((H, W)) - 1
 
@@ -1860,6 +1866,7 @@ def write_ply(image,
     pre_depth = depth.copy()
     input_mesh, info_on_pix, edge_mesh, depth, aft_mark = remove_dangling(input_mesh, edge_ccs, edge_mesh, info_on_pix, image, depth, config)
 
+    print("status updating")
     input_mesh, depth, info_on_pix = update_status(input_mesh, info_on_pix, depth)
     edge_ccs, input_mesh, edge_mesh = group_edges(input_mesh, config, image, remove_conflict_ordinal=True)
     edge_canvas = np.zeros((H, W)) - 1

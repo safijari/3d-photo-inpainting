@@ -96,6 +96,14 @@ def write_pfm(path, image, scale=1):
         image.tofile(file)
 
 
+def preprocess_image_for_depth(img):
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) / 255.0
+
+    return img
+
 def read_image(path):
     """Read image and output RGB image (0-1).
 
@@ -106,13 +114,8 @@ def read_image(path):
         array: RGB image (0-1)
     """
     img = cv2.imread(path)
+    return preprocess_image_for_depth(img)
 
-    if img.ndim == 2:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) / 255.0
-
-    return img
 
 
 def resize_image(img):

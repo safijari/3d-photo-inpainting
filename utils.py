@@ -828,6 +828,45 @@ def clean_far_edge(mask_edge, mask_edge_with_id, context_edge, mask, info_on_pix
 
     return far_edge, uncleaned_far_edge, far_edge_with_id, near_edge_with_id
 
+
+def make_MiDaS_sample(image, config):
+    generic_pose = np.eye(4)
+    assert len(config['traj_types']) == len(config['x_shift_range']) ==\
+           len(config['y_shift_range']) == len(config['z_shift_range']) == len(config['video_postfix']), \
+           "The number of elements in 'traj_types', 'x_shift_range', 'y_shift_range', 'z_shift_range' and \
+               'video_postfix' should be equal."
+    tgt_pose = [[generic_pose * 1]]
+    tgts_poses = []
+    for traj_idx in range(len(config['traj_types'])):
+        tgt_poses = []
+        sx, sy, sz = path_planning(config['num_frames'], config['x_shift_range'][traj_idx], config['y_shift_range'][traj_idx],
+                                   config['z_shift_range'][traj_idx], path_type=config['traj_types'][traj_idx])
+        for xx, yy, zz in zip(sx, sy, sz):
+            tgt_poses.append(generic_pose * 1.)
+            tgt_poses[-1][:3, -1] = np.array([xx, yy, zz])
+        tgts_poses += [tgt_poses]
+    tgt_pose = generic_pose * 1
+
+    aft_flag = True
+
+    sdict = {}
+    # sdict['depth_fi'] = os.path.join(depth_folder, seq_dir + '.npy')
+    # sdict['ref_img_fi'] = os.path.join(image_folder, seq_dir + config['img_format'])
+    H, W = image.shape[:2]
+    sdict['int_mtx'] = np.array([[max(H, W), 0, W//2], [0, max(H, W), H//2], [0, 0, 1]]).astype(np.float32)
+    if sdict['int_mtx'].max() > 1:
+        sdict['int_mtx'][0, :] = sdict['int_mtx'][0, :] / float(W)
+        sdict['int_mtx'][1, :] = sdict['int_mtx'][1, :] / float(H)
+    sdict['ref_pose'] = np.eye(4)
+    sdict['tgt_pose'] = tgt_pose
+    sdict['tgts_poses'] = tgts_poses
+    sdict['video_postfix'] = config['video_postfix']
+    # sdict['tgt_name'] = [os.path.splitext(os.path.basename(sdict['depth_fi']))[0]]
+    # sdict['src_pair_name'] = sdict['tgt_name'][0]
+
+    return sdict
+
+
 def get_MiDaS_samples(image_folder, depth_folder, config, specific=None, aft_certain=None):
     lines = [os.path.splitext(os.path.basename(xx))[0] for xx in glob.glob(os.path.join(image_folder, '*' + config['img_format']))]
     samples = []
@@ -932,9 +971,8 @@ def smooth_cntsyn_gap(init_depth_map, mask_region, context_region, init_mask_reg
 
     return depth_map
 
-def read_MiDaS_depth(disp_fi, disp_rescale=10., h=None, w=None):
-    disp = np.load(disp_fi)
-    # import pdb; pdb.set_trace()
+
+def transform_MiDaS_depth(disp, disp_rescale=10., h=None, w=None):
     disp = disp - disp.min()
     disp = cv2.blur(disp / disp.max(), ksize=(3, 3)) * disp.max()
     disp = (disp / disp.max()) * disp_rescale
@@ -943,6 +981,11 @@ def read_MiDaS_depth(disp_fi, disp_rescale=10., h=None, w=None):
     depth = 1. / np.maximum(disp, 0.05)
 
     return depth
+
+
+def read_MiDaS_depth(disp_fi, disp_rescale=10., h=None, w=None):
+    disp = np.load(disp_fi)
+    return transform_MiDaS_depth(disp, disp_rescale, h, w)
 
 def follow_image_aspect_ratio(depth, image):
     H, W = image.shape[:2]
