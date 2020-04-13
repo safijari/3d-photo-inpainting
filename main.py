@@ -77,14 +77,14 @@ class ImageProcessor:
         self.mh = models_holder
         self.rt_info = None
         self.sample = None
-        self.image = None
+        self.image_rgb = None
         self.depth = None
 
-    def pre_process_image(self, image):
-        self.sample = make_MiDaS_sample(image, config)
+    def pre_process_image(self, image_rgb):
+        self.sample = make_MiDaS_sample(image_rgb, config)
         # run depth
         print("depthing")
-        depth = run_depth_single_image_return(image, self.mh.mono_depth_model, MiDaS_utils, device, target_w=640)
+        depth = run_depth_single_image_return(image_rgb, self.mh.mono_depth_model, MiDaS_utils, device, target_w=640)
 
         # do ... things ... wut?
         config["output_h"], config["output_w"] = depth.shape[:2]
@@ -92,28 +92,30 @@ class ImageProcessor:
         config["output_h"], config["output_w"] = int(config["output_h"] * frac), int(config["output_w"] * frac)
         config["original_h"], config["original_w"] = config["output_h"], config["output_w"]
 
-        if image.ndim == 2:
-            image = image[..., None].repeat(3, -1)
-        if np.sum(np.abs(image[..., 0] - image[..., 1])) == 0 and np.sum(np.abs(image[..., 1] - image[..., 2])) == 0:
+        if image_rgb.ndim == 2:
+            image_rgb = image_rgb[..., None].repeat(3, -1)
+        if np.sum(np.abs(image_rgb[..., 0] - image_rgb[..., 1])) == 0 and np.sum(np.abs(image_rgb[..., 1] - image_rgb[..., 2])) == 0:
             config["gray_image"] = True
         else:
             config["gray_image"] = False
 
-        # main image and depth pre-processing
-        image = cv2.resize(image, (config["output_w"], config["output_h"]), interpolation=cv2.INTER_AREA)
+        # main image_rgb and depth pre-processing
+        image_rgb = cv2.resize(image_rgb, (config["output_w"], config["output_h"]), interpolation=cv2.INTER_AREA)
         depth = transform_MiDaS_depth(depth, 3.0, config["output_h"], config["output_w"])
 
         print("bilateralling")
         # bilateral filtering
         vis_photos, vis_depths = sparse_bilateral_filtering(
-            depth.copy(), image.copy(), config, num_iter=config["sparse_iter"], spdb=False
+            depth.copy(), image_rgb.copy(), config, num_iter=config["sparse_iter"], spdb=False
         )
+
+        depth = vis_depths[-1]
 
         mesh_fi = "/tmp/mesh"
 
         print("plying")
         self.rt_info = write_ply(
-            image,
+            image_rgb,
             depth,
             self.sample["int_mtx"],
             mesh_fi,
@@ -124,7 +126,7 @@ class ImageProcessor:
             self.mh.depth_feat_model,
         )
 
-        self.image = image
+        self.image_rgb = image_rgb
         self.depth = depth
 
     def run_image(self, video_basename):
@@ -147,10 +149,10 @@ class ImageProcessor:
             self.sample["video_postfix"],
             copy.deepcopy(self.sample["ref_pose"]),
             copy.deepcopy(config["video_folder"]),
-            self.image.copy(),
+            self.image_rgb.copy(),
             copy.deepcopy(self.sample["int_mtx"]),
             config,
-            self.image,
+            self.image_rgb,
             videos_poses,
             video_basename,
             config.get("original_h"),
@@ -161,11 +163,11 @@ class ImageProcessor:
             all_canvas=None,
         )
 
-
 if __name__ == "__main__":
     mh = ModelsHolder()
-    im = cv2.imread('/home/jack/Pictures/ram.jpg')
     ip = ImageProcessor(mh)
-    ip.pre_process_image(im)
-    ip.run_image('/tmp/ram')
+    def run_on_image(path):
+        im = cv2.imread(path)[:, :, ::-1]
+        ip.pre_process_image(im)
+        ip.run_image(path)
     import ipdb; ipdb.set_trace()

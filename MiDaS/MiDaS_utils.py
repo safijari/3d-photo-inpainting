@@ -98,11 +98,9 @@ def write_pfm(path, image, scale=1):
 
 def preprocess_image_for_depth(img):
     if img.ndim == 2:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) / 255.0
-
-    return img
+    return img / 255.0
 
 def read_image(path):
     """Read image and output RGB image (0-1).
