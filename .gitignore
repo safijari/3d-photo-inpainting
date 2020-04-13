@@ -4,3 +4,4 @@ mesh/
 video/
 checkpoints/
 *__pycache__/
+.token
